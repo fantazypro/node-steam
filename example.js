@@ -1,57 +1,62 @@
-var fs = require('fs');
 var Steam = require('steam');
-
-// if we've saved a server list, use it
-if (fs.existsSync('servers')) {
-  Steam.servers = JSON.parse(fs.readFileSync('servers'));
+var fs = require('fs');
+var bot = new Steam.SteamClient();
+ 
+if (fs.existsSync('sentryfile'))
+{
+    var sentry = fs.readFileSync('sentryfile');
+    console.log('[STEAM] logging in with sentry ');
+    bot.logOn({
+      accountName: 'instinctzdark1',
+      password: 'r;5x2V!H',
+      shaSentryfile: sentry
+    });
 }
-
-var steamClient = new Steam.SteamClient();
-var steamUser = new Steam.SteamUser(steamClient);
-var steamFriends = new Steam.SteamFriends(steamClient);
-
-steamClient.connect();
-steamClient.on('connected', function() {
-  steamUser.logOn({
-    account_name: 'username',
-    password: 'password'
-  });
+else
+{
+    console.log('[STEAM] logging in without sentry');
+    bot.logOn({
+      accountName: 'instinctzdark1',
+      password: 'r;5x2V!H',
+      authCode: ''
+    });
+}
+bot.on('loggedOn', function() {
+    console.log('[STEAM] Logged in.');
+    bot.setPersonaState(Steam.EPersonaState.Online);
+    //Tell steam we are playing games.
+    //440=tf2
+    //550=l4d2 
+    //730=csgo
+    //570=dota2
+    bot.gamesPlayed([440, 550, 730, 570]);
 });
-
-steamClient.on('logOnResponse', function(logonResp) {
-  if (logonResp.eresult == Steam.EResult.OK) {
-    console.log('Logged in!');
-    steamFriends.setPersonaState(Steam.EPersonaState.Online); // to display your bot's status as "Online"
-    steamFriends.setPersonaName('Haruhi'); // to change its nickname
-    steamFriends.joinChat('103582791431621417'); // the group's SteamID as a string
-  }
+ 
+bot.on('sentry', function(sentryHash)
+{//A sentry file is a file that is sent once you have
+//passed steamguard verification.
+    console.log('[STEAM] Received sentry file.');
+    fs.writeFile('sentryfile',sentryHash,function(err) {
+    if(err){
+      console.log(err);
+    } else {
+      console.log('[FS] Saved sentry file to disk.');
+    }});
 });
-
-steamClient.on('servers', function(servers) {
-  fs.writeFile('servers', JSON.stringify(servers));
-});
-
-steamFriends.on('chatInvite', function(chatRoomID, chatRoomName, patronID) {
-  console.log('Got an invite to ' + chatRoomName + ' from ' + steamFriends.personaStates[patronID].player_name);
-  steamFriends.joinChat(chatRoomID); // autojoin on invite
-});
-
-steamFriends.on('message', function(source, message, type, chatter) {
-  // respond to both chat room and private messages
-  console.log('Received message: ' + message);
-  if (message == 'ping') {
-    steamFriends.sendMessage(source, 'pong', Steam.EChatEntryType.ChatMsg); // ChatMsg by default
-  }
-});
-
-steamFriends.on('chatStateChange', function(stateChange, chatterActedOn, steamIdChat, chatterActedBy) {
-  if (stateChange == Steam.EChatMemberStateChange.Kicked && chatterActedOn == steamClient.steamID) {
-    steamFriends.joinChat(steamIdChat);  // autorejoin!
-  }
-});
-
-steamFriends.on('clanState', function(clanState) {
-  if (clanState.announcements.length) {
-    console.log('Group with SteamID ' + clanState.steamid_clan + ' has posted ' + clanState.announcements[0].headline);
-  }
-});
+ 
+//Handle logon errors
+bot.on('error', function(e) {
+console.log('[STEAM] ERROR - Logon failed');
+    if (e.eresult == Steam.EResult.InvalidPassword)
+    {
+    console.log('Reason: invalid password');
+    }
+    else if (e.eresult == Steam.EResult.AlreadyLoggedInElsewhere)
+    {
+    console.log('Reason: already logged in elsewhere');
+    }
+    else if (e.eresult == Steam.EResult.AccountLogonDenied)
+    {
+    console.log('Reason: logon denied - steam guard needed');
+    }
+})
